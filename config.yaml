@@ -1,0 +1,27 @@
+# MeetScribe - Configurazione
+
+# Modello Whisper per trascrizione
+# Opzioni: tiny, base, small, medium, large-v3
+# "medium" è il miglior compromesso per CPU (buona qualità, velocità accettabile)
+whisper:
+  model: "medium"
+  language: null  # null = auto-detect, oppure "it", "en", etc.
+  beam_size: 5
+  compute_type: "int8"  # int8 è più veloce su CPU
+
+# Speaker diarization
+diarization:
+  min_speakers: null  # null = auto-detect
+  max_speakers: null  # null = auto-detect
+
+# Audio extraction
+audio:
+  sample_rate: 16000
+  channels: 1  # mono
+
+# Output
+output:
+  formats:
+    - json
+    - txt
+  directory: "output"

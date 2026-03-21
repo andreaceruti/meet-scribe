@@ -1,0 +1,26 @@
+[project]
+name = "meet-scribe"
+version = "0.1.0"
+description = "Pipeline locale di trascrizione riunioni con speaker diarization"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "faster-whisper>=1.1.0",
+    "pyannote-audio>=3.3.0,<5.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "soundfile>=0.12.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/meet_scribe"]
+
+[tool.uv]
+override-dependencies = ["torchcodec==0.0.0; python_version > '9999'"]
+
+[project.scripts]
+meet-scribe = "meet_scribe.main:main"

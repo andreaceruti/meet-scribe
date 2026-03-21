@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+
+# Input/output data
+input/
+output/
+
+# Model cache
+.cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+recordings
