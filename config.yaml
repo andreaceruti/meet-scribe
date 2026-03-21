@@ -1,10 +1,10 @@
 # MeetScribe - Configurazione
 
 # Modello Whisper per trascrizione
-# Opzioni: tiny, base, small, medium, large-v3
-# "medium" è il miglior compromesso per CPU (buona qualità, velocità accettabile)
+# Opzioni: tiny, base, small, medium, large-v3, large-v3-turbo
+# "large-v3-turbo" è il migliore su GPU (qualità large, velocità medium)
 whisper:
-  model: "medium"
+  model: "large-v3-turbo"
   language: null  # null = auto-detect, oppure "it", "en", etc.
   beam_size: 5
   compute_type: "int8"  # int8 è più veloce su CPU
