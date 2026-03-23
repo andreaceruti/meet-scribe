@@ -1,10 +1,18 @@
 import argparse
+import os
 import subprocess
 import tempfile
 import time
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
+
+# Carica .env e sincronizza il token HF per tutti i componenti
+load_dotenv()
+_hf_token = os.getenv("HUGGING_FACE_TOKEN") or os.getenv("HF_TOKEN")
+if _hf_token and not os.getenv("HF_TOKEN"):
+    os.environ["HF_TOKEN"] = _hf_token
 
 # TODO: rimuovere dopo test — limita l'audio a 5 minuti per debug veloce
 _DEBUG_MAX_SECONDS = None
@@ -112,21 +120,21 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
         print(f"       Scaricamento/caricamento modello Whisper...")
         model = load_whisper_model(model_size=model_name, compute_type=compute)
         print(f"       Modello caricato, inizio trascrizione...")
-        transcription_segments, detected_lang = transcribe(
+        transcription_segments, words, detected_lang = transcribe(
             wav_path,
             model=model,
             language=lang,
             beam_size=w_config.get("beam_size", 5),
         )
         print(f"       Lingua rilevata: {detected_lang}")
-        print(f"       {len(transcription_segments)} segmenti trascritti")
+        print(f"       {len(transcription_segments)} segmenti, {len(words)} parole trascritte")
         print(f"       Completato in {_elapsed(step_start)}")
 
     # Step 4: Merge e output
     print(f"\n[4/4] Generazione output...")
     step_start = time.time()
     merged = merge_diarization_and_transcription(
-        diarization_segments, transcription_segments
+        diarization_segments, transcription_segments, words=words
     )
 
     speakers = sorted(set(s["speaker"] for s in merged))

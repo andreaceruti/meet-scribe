@@ -40,12 +40,13 @@ def load_whisper_model(model_size: str = "medium",
 
 def transcribe(audio_path: Path, model: WhisperModel,
                language: str | None = None,
-               beam_size: int = 5) -> list[dict]:
-    """Trascrive l'audio e restituisce segmenti con timestamp e testo."""
+               beam_size: int = 5) -> tuple[list[dict], list[dict], str]:
+    """Trascrive l'audio e restituisce segmenti + parole con timestamp."""
     segments, info = model.transcribe(
         str(audio_path),
         language=language,
         beam_size=beam_size,
+        word_timestamps=True,
         vad_filter=True,
         vad_parameters=dict(
             min_silence_duration_ms=500,
@@ -53,11 +54,19 @@ def transcribe(audio_path: Path, model: WhisperModel,
     )
 
     result = []
+    words = []
     for segment in segments:
         result.append({
             "start": segment.start,
             "end": segment.end,
             "text": segment.text.strip(),
         })
+        if segment.words:
+            for w in segment.words:
+                words.append({
+                    "start": w.start,
+                    "end": w.end,
+                    "word": w.word,
+                })
 
-    return result, info.language
+    return result, words, info.language

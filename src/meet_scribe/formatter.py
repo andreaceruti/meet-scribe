@@ -10,15 +10,127 @@ def format_timestamp(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _assign_speaker_to_word(word: dict, diarization_segments: list[dict]) -> str:
+    """Assegna uno speaker a una singola parola basandosi sul suo timestamp."""
+    w_mid = (word["start"] + word["end"]) / 2
+
+    # Trova il segmento di diarization che contiene il punto medio della parola
+    for d_seg in diarization_segments:
+        if d_seg["start"] <= w_mid <= d_seg["end"]:
+            return d_seg["speaker"]
+
+    # Fallback: segmento più vicino
+    if diarization_segments:
+        return min(
+            diarization_segments,
+            key=lambda d: min(abs(d["start"] - w_mid), abs(d["end"] - w_mid)),
+        )["speaker"]
+
+    return "Unknown"
+
+
 def merge_diarization_and_transcription(
     diarization_segments: list[dict],
     transcription_segments: list[dict],
+    words: list[dict] | None = None,
 ) -> list[dict]:
-    """Unisce i segmenti di diarization (chi parla) con la trascrizione (cosa dice).
+    """Unisce diarization (chi parla) con trascrizione (cosa dice).
 
-    Per ogni segmento trascritto, trova lo speaker che parla in quel momento
-    basandosi sulla sovrapposizione temporale.
+    Se words è fornito (word-level timestamps), assegna ogni parola allo speaker
+    corretto e ricostruisce le frasi. Altrimenti fallback al merge per segmento.
     """
+    if words:
+        return _merge_word_level(diarization_segments, words)
+    return _merge_segment_level(diarization_segments, transcription_segments)
+
+
+def _merge_word_level(
+    diarization_segments: list[dict],
+    words: list[dict],
+) -> list[dict]:
+    """Merge a livello di parola: assegna ogni parola al suo speaker, poi raggruppa."""
+    if not words:
+        return []
+
+    # Ordina diarization per start per efficienza
+    d_segs = sorted(diarization_segments, key=lambda d: d["start"])
+
+    # Assegna speaker a ogni parola
+    tagged_words = []
+    d_idx = 0
+    for word in words:
+        w_mid = (word["start"] + word["end"]) / 2
+
+        # Avanza l'indice di diarization per restare vicino alla parola corrente
+        while d_idx < len(d_segs) - 1 and d_segs[d_idx]["end"] < w_mid:
+            d_idx += 1
+
+        # Cerca lo speaker migliore nella finestra locale
+        speaker = "Unknown"
+        best_dist = float("inf")
+        for i in range(max(0, d_idx - 1), min(len(d_segs), d_idx + 3)):
+            d = d_segs[i]
+            if d["start"] <= w_mid <= d["end"]:
+                speaker = d["speaker"]
+                break
+            dist = min(abs(d["start"] - w_mid), abs(d["end"] - w_mid))
+            if dist < best_dist:
+                best_dist = dist
+                speaker = d["speaker"]
+
+        tagged_words.append({
+            "start": word["start"],
+            "end": word["end"],
+            "word": word["word"],
+            "speaker": speaker,
+        })
+
+    # Raggruppa parole consecutive dello stesso speaker in frasi
+    merged = []
+    current_speaker = None
+    current_words = []
+    current_start = 0.0
+
+    for tw in tagged_words:
+        if tw["speaker"] != current_speaker:
+            # Salva il gruppo precedente
+            if current_words:
+                text = "".join(current_words).strip()
+                if text:
+                    merged.append({
+                        "start": format_timestamp(current_start),
+                        "end": format_timestamp(current_words_end),
+                        "speaker": current_speaker,
+                        "testo": text,
+                    })
+            # Inizia nuovo gruppo
+            current_speaker = tw["speaker"]
+            current_words = [tw["word"]]
+            current_start = tw["start"]
+            current_words_end = tw["end"]
+        else:
+            current_words.append(tw["word"])
+            current_words_end = tw["end"]
+
+    # Salva l'ultimo gruppo
+    if current_words:
+        text = "".join(current_words).strip()
+        if text:
+            merged.append({
+                "start": format_timestamp(current_start),
+                "end": format_timestamp(current_words_end),
+                "speaker": current_speaker,
+                "testo": text,
+            })
+
+    return merged
+
+
+def _merge_segment_level(
+    diarization_segments: list[dict],
+    transcription_segments: list[dict],
+) -> list[dict]:
+    """Fallback: merge a livello di segmento (vecchio metodo)."""
     merged = []
 
     for t_seg in transcription_segments:
@@ -26,7 +138,6 @@ def merge_diarization_and_transcription(
         t_end = t_seg["end"]
         t_mid = (t_start + t_end) / 2
 
-        # Trova lo speaker con la maggiore sovrapposizione
         best_speaker = "Unknown"
         best_overlap = 0.0
 
@@ -39,7 +150,6 @@ def merge_diarization_and_transcription(
                 best_overlap = overlap
                 best_speaker = d_seg["speaker"]
 
-        # Fallback: se nessuna sovrapposizione, usa il segmento più vicino al punto medio
         if best_speaker == "Unknown" and diarization_segments:
             best_speaker = min(
                 diarization_segments,
