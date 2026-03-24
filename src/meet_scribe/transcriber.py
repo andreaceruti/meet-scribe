@@ -40,17 +40,39 @@ def load_whisper_model(model_size: str = "medium",
 
 def transcribe(audio_path: Path, model: WhisperModel,
                language: str | None = None,
-               beam_size: int = 5) -> tuple[list[dict], list[dict], str]:
-    """Trascrive l'audio e restituisce segmenti + parole con timestamp."""
+               beam_size: int = 5,
+               initial_prompt: str | None = None,
+               vad_params: dict | None = None) -> tuple[list[dict], list[dict], str]:
+    """Trascrive l'audio e restituisce segmenti + parole con timestamp.
+
+    Args:
+        initial_prompt: Testo di contesto per guidare Whisper (nomi propri, acronimi, etc.)
+                        Es: "Meeting con Emanuele, Davide Gianetti, Fabio. CSRD, ESG, ESMA."
+        vad_params: Parametri VAD override. Default ottimizzati per meeting multi-speaker.
+    """
+    # VAD parameters ottimizzati per meeting:
+    # - min_silence_duration_ms=300: cattura pause brevi tra turni speaker
+    #   (default 500ms perdeva turni rapidi come "yeah sure")
+    # - speech_pad_ms=200: padding attorno ai segmenti speech per non tagliare inizi/fini
+    # - threshold=0.35: soglia VAD più sensibile (default 0.5 perdeva utterance brevi)
+    default_vad = {
+        "min_silence_duration_ms": 300,
+        "speech_pad_ms": 200,
+        "threshold": 0.35,
+    }
+    if vad_params:
+        default_vad.update(vad_params)
+
     segments, info = model.transcribe(
         str(audio_path),
         language=language,
         beam_size=beam_size,
         word_timestamps=True,
         vad_filter=True,
-        vad_parameters=dict(
-            min_silence_duration_ms=500,
-        ),
+        vad_parameters=default_vad,
+        initial_prompt=initial_prompt,
+        condition_on_previous_text=True,
+        no_speech_threshold=0.5,
     )
 
     result = []

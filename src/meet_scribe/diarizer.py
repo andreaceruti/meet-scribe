@@ -73,9 +73,57 @@ def load_diarization_pipeline() -> Pipeline:
 
 
 def diarize(audio_path: Path, min_speakers: int | None = None,
-            max_speakers: int | None = None) -> list[dict]:
-    """Esegue la speaker diarization e restituisce i segmenti con speaker ID."""
+            max_speakers: int | None = None,
+            hyperparams: dict | None = None) -> list[dict]:
+    """Esegue la speaker diarization e restituisce i segmenti con speaker ID.
+
+    hyperparams può contenere:
+        - segmentation_threshold: soglia VAD del modello di segmentazione (default ~0.44)
+        - clustering_threshold: soglia clustering agglomerativo (default ~0.72)
+          Più basso = più speaker distinti. Più alto = tende a fondere speaker.
+        - min_duration_off: durata minima silenzio tra turni in secondi (default ~0.58)
+          Più basso = cattura turni rapidi come "yeah sure".
+        - min_duration_on: durata minima speech segment in secondi (default 0.0)
+    """
     pipeline = load_diarization_pipeline()
+
+    # Applica hyperparameters per tuning fine della diarization
+    # Usa pipeline.instantiate() con i parametri strutturati di pyannote
+    if hyperparams:
+        # Leggi i parametri correnti come base
+        try:
+            current = pipeline.parameters(instantiated=True)
+        except Exception:
+            current = {}
+
+        # Costruisci il dict di override nella struttura attesa da pyannote
+        override = {}
+        if "segmentation_threshold" in hyperparams:
+            override.setdefault("segmentation", {})["threshold"] = hyperparams["segmentation_threshold"]
+        if "min_duration_off" in hyperparams:
+            override.setdefault("segmentation", {})["min_duration_off"] = hyperparams["min_duration_off"]
+        if "min_duration_on" in hyperparams:
+            override.setdefault("segmentation", {})["min_duration_on"] = hyperparams["min_duration_on"]
+        if "clustering_threshold" in hyperparams:
+            override.setdefault("clustering", {})["threshold"] = hyperparams["clustering_threshold"]
+
+        if override:
+            # Merge: current params + override
+            merged_params = {}
+            for key in set(list(current.keys()) + list(override.keys())):
+                if isinstance(current.get(key), dict) and isinstance(override.get(key), dict):
+                    merged_params[key] = {**current[key], **override[key]}
+                elif key in override:
+                    merged_params[key] = override[key]
+                else:
+                    merged_params[key] = current[key]
+
+            try:
+                pipeline.instantiate(merged_params)
+                print(f"       Hyperparams applicati: {override}")
+            except Exception as e:
+                print(f"       [warning] Impossibile applicare hyperparams: {e}")
+                print(f"       Uso parametri default del modello")
 
     params = {}
     if min_speakers is not None:

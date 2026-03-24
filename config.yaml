@@ -7,12 +7,42 @@ whisper:
   model: "large-v3-turbo"
   language: null  # null = auto-detect, oppure "it", "en", etc.
   beam_size: 5
-  compute_type: "int8"  # int8 è più veloce su CPU
+  compute_type: "int8"  # int8 è più veloce su CPU, float16 su GPU (auto-detect)
 
-# Speaker diarization
+  # Prompt iniziale per guidare Whisper su nomi propri, acronimi, contesto
+  # Aiuta a trascrivere correttamente nomi che Whisper non conosce
+  # Es: "Meeting with Emanuele, Davide Gianetti, Fabio Bonomo. Topics: CSRD, ESG, ESMA."
+  initial_prompt: null
+
+  # Parametri VAD (Voice Activity Detection) di Silero
+  # Ottimizzati per meeting multi-speaker con turni rapidi
+  vad:
+    min_silence_duration_ms: 300  # Minimo silenzio per separare segmenti (default 500, abbassato per turni rapidi)
+    speech_pad_ms: 200            # Padding attorno a speech per non tagliare inizi/fini
+    threshold: 0.35               # Soglia VAD: più basso = più sensibile a utterance brevi (default 0.5)
+
+# Speaker diarization (pyannote)
 diarization:
   min_speakers: null  # null = auto-detect
   max_speakers: null  # null = auto-detect
+
+  # Hyperparameters per tuning fine della diarization
+  # Questi sovrascrivono i default del modello pyannote/speaker-diarization-3.1
+  hyperparams:
+    # Soglia clustering agglomerativo: controlla quando due segmenti sono lo stesso speaker
+    # Più basso (0.5) = più speaker distinti, più alto (0.9) = tende a fondere speaker
+    # Default pyannote: ~0.72. Per meeting con speaker simili, provare 0.65
+    clustering_threshold: null  # null = usa default del modello
+
+    # Durata minima silenzio tra turni per considerarli speaker diversi
+    # Più basso = cattura turni rapidi come "yeah sure" tra due speaker
+    # Default pyannote: ~0.58s. Per meeting con botta-e-risposta veloce: 0.3
+    min_duration_off: 0.3
+
+    # Soglia segmentazione VAD di pyannote (diversa da quella di Whisper)
+    # Più basso = più sensibile a speech brevi
+    # Default: ~0.44
+    segmentation_threshold: null  # null = usa default del modello
 
 # Audio extraction
 audio:

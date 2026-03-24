@@ -1,6 +1,5 @@
 import argparse
 import os
-import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -13,9 +12,6 @@ load_dotenv()
 _hf_token = os.getenv("HUGGING_FACE_TOKEN") or os.getenv("HF_TOKEN")
 if _hf_token and not os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = _hf_token
-
-# TODO: rimuovere dopo test — limita l'audio a 5 minuti per debug veloce
-_DEBUG_MAX_SECONDS = None
 
 from meet_scribe.audio_extractor import extract_audio, get_audio_duration
 from meet_scribe.diarizer import diarize
@@ -77,19 +73,6 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
 
         duration = get_audio_duration(wav_path)
         print(f"       Durata audio: {format_timestamp(duration)}")
-
-        # DEBUG: tronca a _DEBUG_MAX_SECONDS per test rapido
-        if _DEBUG_MAX_SECONDS and duration > _DEBUG_MAX_SECONDS:
-            trimmed_path = Path(tmp_dir) / f"{input_path.stem}_trim.wav"
-            subprocess.run([
-                "ffmpeg", "-i", str(wav_path),
-                "-t", str(_DEBUG_MAX_SECONDS),
-                "-y", str(trimmed_path),
-            ], capture_output=True)
-            wav_path = trimmed_path
-            duration = _DEBUG_MAX_SECONDS
-            print(f"       [DEBUG] Audio troncato a {format_timestamp(duration)} per test")
-
         print(f"       Completato in {_elapsed(step_start)}")
 
         # Step 2: Speaker diarization
@@ -97,10 +80,14 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
         step_start = time.time()
         print(f"       Scaricamento/caricamento modello pyannote...")
         diar_config = config["diarization"]
+        # Filtra hyperparams non-null dal config
+        raw_hp = diar_config.get("hyperparams") or {}
+        hyperparams = {k: v for k, v in raw_hp.items() if v is not None}
         diarization_segments = diarize(
             wav_path,
             min_speakers=diar_config.get("min_speakers"),
             max_speakers=diar_config.get("max_speakers"),
+            hyperparams=hyperparams if hyperparams else None,
         )
         n_speakers = len(set(s['speaker'] for s in diarization_segments))
         print(f"       Trovati {n_speakers} speaker, {len(diarization_segments)} segmenti")
@@ -120,11 +107,16 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
         print(f"       Scaricamento/caricamento modello Whisper...")
         model = load_whisper_model(model_size=model_name, compute_type=compute)
         print(f"       Modello caricato, inizio trascrizione...")
+        # Parametri VAD dal config (filtra null)
+        raw_vad = w_config.get("vad") or {}
+        vad_params = {k: v for k, v in raw_vad.items() if v is not None}
         transcription_segments, words, detected_lang = transcribe(
             wav_path,
             model=model,
             language=lang,
             beam_size=w_config.get("beam_size", 5),
+            initial_prompt=w_config.get("initial_prompt"),
+            vad_params=vad_params if vad_params else None,
         )
         print(f"       Lingua rilevata: {detected_lang}")
         print(f"       {len(transcription_segments)} segmenti, {len(words)} parole trascritte")
