@@ -285,12 +285,14 @@ def _capitalize_segments(segments: list[dict]) -> list[dict]:
         text = re.sub(r'\bi\b', 'I', text)
 
         # Capitalizza acronimi comuni (case-insensitive match)
+        # NB: "us" escluso perché troppo ambiguo (pronome vs paese)
         _ACRONYMS = {
             "esg": "ESG", "csrd": "CSRD", "esma": "ESMA",
             "iea": "IEA", "msci": "MSCI", "smr": "SMR",
             "smrs": "SMRs", "agm": "AGM", "ceo": "CEO",
-            "hr": "HR", "gdp": "GDP", "eu": "EU", "us": "US",
-            "uk": "UK", "usa": "USA",
+            "hr": "HR", "gdp": "GDP", "eu": "EU",
+            "uk": "UK", "usa": "USA", "u.s.": "U.S.",
+            "slbs": "SLBs", "esrs": "ESRS", "kpis": "KPIs",
         }
         for lower, upper in _ACRONYMS.items():
             text = re.sub(
