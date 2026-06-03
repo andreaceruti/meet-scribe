@@ -23,7 +23,7 @@ Audio/Video → FFmpeg → Speaker Diarization (pyannote) → Transcription (Whi
 
 ```bash
 # Clone the repo
-git clone https://github.com/paratusapp/meet-scribe.git
+git clone https://github.com/andreaceruti/meet-scribe.git
 cd meet-scribe
 
 # Install with uv (recommended)

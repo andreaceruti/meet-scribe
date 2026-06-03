@@ -47,7 +47,7 @@ def transcribe(audio_path: Path, model: WhisperModel,
 
     Args:
         initial_prompt: Testo di contesto per guidare Whisper (nomi propri, acronimi, etc.)
-                        Es: "Meeting con Emanuele, Davide Gianetti, Fabio. CSRD, ESG, ESMA."
+                        Es: "Meeting con Alice, Bob Smith, Charlie. CSRD, ESG, ESMA."
         vad_params: Parametri VAD override. Default ottimizzati per meeting multi-speaker.
     """
     # VAD parameters ottimizzati per meeting:
