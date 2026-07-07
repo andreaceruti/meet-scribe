@@ -164,8 +164,18 @@ def main():
     )
     parser.add_argument(
         "--input", "-i",
-        required=True,
+        default=None,
         help="File audio/video da trascrivere",
+    )
+    parser.add_argument(
+        "--record", "-r",
+        action="store_true",
+        help="Registra dal vivo mic + audio di sistema (Ctrl+C per fermare), poi trascrivi",
+    )
+    parser.add_argument(
+        "--record-only",
+        action="store_true",
+        help="Registra soltanto (mic + audio di sistema) senza trascrivere",
     )
     parser.add_argument(
         "--lang", "-l",
@@ -179,6 +189,26 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if not args.record and not args.record_only and not args.input:
+        parser.error("specifica --input FILE oppure --record / --record-only")
+
+    # Modalità registrazione: cattura live, poi (opzionale) processa in batch
+    if args.record or args.record_only:
+        from meet_scribe.recorder import record_meeting
+
+        config = load_config(Path(args.config) if args.config else None)
+        rec_dir = Path(config.get("output", {}).get("recordings_dir", "recordings"))
+        recorded = record_meeting(rec_dir)
+
+        if args.record_only:
+            print(f"Registrazione completata: {recorded}")
+            print("Per trascriverla:  meet-scribe --input", recorded)
+            return
+
+        run(str(recorded), language=args.lang, config_path=args.config)
+        return
+
     run(args.input, language=args.lang, config_path=args.config)
 
 

@@ -58,6 +58,33 @@ uv run meet-scribe --input audio.wav --lang it --config my_config.yaml
 
 Output files are saved to `output/` as JSON and TXT.
 
+### Live recording (record now, transcribe later)
+
+Capture the meeting straight from the terminal — both your **microphone** (you)
+and the **system audio** (everyone else on the call) — then run the batch
+pipeline on the recording. No video files, no real-time load on the CPU.
+
+```bash
+# Record + transcribe: Ctrl+C stops the recording, then the pipeline runs
+uv run meet-scribe --record
+
+# Record only (transcribe later): saves a WAV to recordings/
+uv run meet-scribe --record-only
+
+# ...then process it whenever you want
+uv run meet-scribe --input recordings/recording_20260707_143200.wav
+```
+
+The recording is a stereo WAV — **left channel = your mic, right channel = system
+audio** — captured via WASAPI loopback (no virtual cable or "Stereo Mix" needed).
+The batch pipeline downmixes it to mono automatically, so diarization sees all
+speakers, you included.
+
+> **Note:** live *recording* runs fine on CPU (no real-time constraint). Live
+> *diarization/transcription* is a separate problem — pyannote's clustering is
+> offline by design, and Whisper on CPU is slower than real-time for anything
+> above the small models. Record-then-process sidesteps both.
+
 ### Output example
 
 ```
