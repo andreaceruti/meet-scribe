@@ -63,10 +63,11 @@ def load_diarization_pipeline() -> Pipeline:
 
     device = _get_device()
     print(f"       Caricamento pipeline diarization in memoria ({device})...")
-    pipeline = Pipeline.from_pretrained(
-        DIARIZATION_MODEL,
-        token=hf_token,
-    )
+    # pyannote 4.x usa il parametro `token`, la 3.x usa `use_auth_token`.
+    try:
+        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL, token=hf_token)
+    except TypeError:
+        pipeline = Pipeline.from_pretrained(DIARIZATION_MODEL, use_auth_token=hf_token)
     pipeline.to(device)
     print(f"       Pipeline pronta su {device}")
     return pipeline

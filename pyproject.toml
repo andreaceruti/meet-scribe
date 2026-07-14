@@ -7,6 +7,11 @@ requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.1.0",
     "pyannote-audio>=3.3.0,<5.0.0",
+    # pyannote 4.x scarica un PLDA da `pyannote/speaker-diarization-community-1`,
+    # che HF serve tramite storage Xet. Senza il pacchetto `hf-xet`, huggingface_hub
+    # ripiega sul "xet-bridge" (URL CDN firmato) che su Colab da' 403 SignatureError.
+    # Installando hf-xet si usa il protocollo Xet nativo, che scarica correttamente.
+    "hf-xet>=1.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.0.0",
     "soundfile>=0.12.0",
