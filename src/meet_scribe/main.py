@@ -50,8 +50,15 @@ def load_config(config_path: Path = None) -> dict:
     }
 
 
-def run(input_path: str, language: str | None = None, config_path: str | None = None):
-    """Esegue la pipeline completa di trascrizione."""
+def run(input_path: str, language: str | None = None, config_path: str | None = None,
+        model: str | None = None):
+    """Esegue la pipeline completa di trascrizione.
+
+    Args:
+        model: Sovrascrive il modello Whisper del config (es. 'small', 'medium',
+               'large-v3-turbo'). Utile per usare un modello più leggero se quello
+               grande non si scarica.
+    """
     input_path = Path(input_path)
     config = load_config(Path(config_path) if config_path else None)
     total_start = time.time()
@@ -98,7 +105,7 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
         step_start = time.time()
         w_config = config["whisper"]
         lang = language or w_config.get("language")
-        model_name = w_config.get("model", "medium")
+        model_name = model or w_config.get("model", "medium")
         compute = w_config.get("compute_type", "int8")
         import torch as _torch
         _device = "GPU (CUDA)" if _torch.cuda.is_available() else "CPU"
@@ -183,6 +190,12 @@ def main():
         help="Lingua (es. 'it', 'en'). Default: auto-detect",
     )
     parser.add_argument(
+        "--model", "-m",
+        default=None,
+        help="Modello Whisper (tiny, base, small, medium, large-v3, large-v3-turbo). "
+             "Sovrascrive il config. Utile se il modello grande non si scarica.",
+    )
+    parser.add_argument(
         "--config", "-c",
         default=None,
         help="Path al file config.yaml",
@@ -206,10 +219,10 @@ def main():
             print("Per trascriverla:  meet-scribe --input", recorded)
             return
 
-        run(str(recorded), language=args.lang, config_path=args.config)
+        run(str(recorded), language=args.lang, config_path=args.config, model=args.model)
         return
 
-    run(args.input, language=args.lang, config_path=args.config)
+    run(args.input, language=args.lang, config_path=args.config, model=args.model)
 
 
 if __name__ == "__main__":

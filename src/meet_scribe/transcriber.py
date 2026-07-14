@@ -33,7 +33,13 @@ def load_whisper_model(model_size: str = "medium",
         # mantieni il compute_type dal config (int8 per CPU)
 
     print(f"       Caricamento whisper-{model_size} in memoria ({device}, {compute_type})...")
-    model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    # local_files_only=True: il modello è già stato scaricato/verificato sopra,
+    # quindi carichiamo SOLO dalla cache locale. Senza questo, faster-whisper
+    # rifà un giro di rete a ogni costruzione (HEAD/etag + recupero token, che su
+    # Colab può bloccarsi per minuti) → sembra un hang al caricamento del modello.
+    model = WhisperModel(
+        model_size, device=device, compute_type=compute_type, local_files_only=True
+    )
     print(f"       Modello pronto su {device}")
     return model
 

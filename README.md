@@ -5,7 +5,9 @@ Local meeting transcription pipeline with speaker diarization. Converts audio/vi
 ## Pipeline
 
 ```
-Audio/Video → FFmpeg → Speaker Diarization (pyannote) → Transcription (Whisper) → JSON + TXT
+                    (optional) Live capture: mic + system audio → stereo WAV
+                                                   │
+Audio/Video / recording → FFmpeg → Speaker Diarization (pyannote) → Transcription (Whisper) → JSON + TXT
 ```
 
 ## Requirements
@@ -16,6 +18,9 @@ Audio/Video → FFmpeg → Speaker Diarization (pyannote) → Transcription (Whi
 - Accept pyannote model terms on HuggingFace:
   - https://huggingface.co/pyannote/segmentation-3.0
   - https://huggingface.co/pyannote/speaker-diarization-3.1
+- *(Optional, for live recording)* the `soundcard` package (installed automatically).
+  Capturing the **system audio** uses WASAPI loopback, which is **Windows-only**;
+  microphone-only recording still works on other platforms.
 
 ## Setup
 
@@ -65,25 +70,48 @@ and the **system audio** (everyone else on the call) — then run the batch
 pipeline on the recording. No video files, no real-time load on the CPU.
 
 ```bash
-# Record + transcribe: Ctrl+C stops the recording, then the pipeline runs
+# Record + transcribe: press ENTER to stop, then the pipeline runs
 uv run meet-scribe --record
 
 # Record only (transcribe later): saves a WAV to recordings/
 uv run meet-scribe --record-only
 
 # ...then process it whenever you want
-uv run meet-scribe --input recordings/recording_20260707_143200.wav
+uv run meet-scribe --input recordings/recording_20260707_143200.wav --lang it
 ```
 
-The recording is a stereo WAV — **left channel = your mic, right channel = system
-audio** — captured via WASAPI loopback (no virtual cable or "Stereo Mix" needed).
-The batch pipeline downmixes it to mono automatically, so diarization sees all
-speakers, you included.
+**Which devices?** It records whatever Windows currently has set as **default
+microphone** and **default output** (the output is captured via WASAPI loopback —
+no virtual cable or "Stereo Mix" needed). Change the Windows defaults and the next
+recording follows them, nothing is hardcoded. The startup banner prints the two
+devices it picked, so you can check before you start:
 
-> **Note:** live *recording* runs fine on CPU (no real-time constraint). Live
-> *diarization/transcription* is a separate problem — pyannote's clustering is
-> offline by design, and Whisper on CPU is slower than real-time for anything
-> above the small models. Record-then-process sidesteps both.
+```
+  Microfono (L):    Headset (AirPods)
+  Audio sistema (R): Headphones (AirPods)
+```
+
+**Stereo layout.** The file is a stereo WAV — **left = your mic, right = system
+audio**. The batch pipeline downmixes it to mono automatically, so diarization sees
+all speakers, you included.
+
+**You can't lose a recording.** Audio is streamed to disk *while* you record (not
+held in RAM), and the final save ignores Ctrl+C. If the process is force-killed
+mid-save, the raw per-channel tracks (`recording_*.mic.f32`, `recording_*.sys.f32`)
+are left in `recordings/` for recovery instead of being deleted.
+
+> **Bluetooth headsets (e.g. AirPods):** when the same earbuds are used as *both*
+> mic and output, Windows switches to the hands-free profile and the loopback
+> capture gets small gaps (harmless "data discontinuity" warnings — now silenced).
+> For the cleanest capture, use the **laptop mic for input + Bluetooth/speakers for
+> output**, so the two streams don't fight over one Bluetooth link.
+
+> **On CPU, transcription is the slow part, not recording.** Saving a 1-hour
+> recording is instant, but transcribing it afterward with `large-v3-turbo` on CPU
+> takes hours — drop `whisper.model` to `medium` or `small` in `config.yaml` first
+> (see [Configuration](#configuration)). Live *diarization/transcription* isn't
+> offered on purpose: pyannote's clustering is offline by design and Whisper on CPU
+> is slower than real-time above the small models. Record-then-process sidesteps both.
 
 ### Output example
 
@@ -115,10 +143,11 @@ output:
     - json
     - txt
   directory: "output"
+  recordings_dir: "recordings"   # where --record / --record-only save the WAVs
 ```
 
 **Model recommendations:**
-- **CPU**: `medium` (best quality/speed tradeoff)
+- **CPU**: `medium` (best quality/speed tradeoff) — or `small`/`base` for long live recordings you want to transcribe quickly
 - **GPU**: `large-v3-turbo` (best quality, fast on GPU)
 
 ## How it works
@@ -159,6 +188,7 @@ Benchmarked on a 48-minute English meeting recording:
 meet-scribe/
 ├── src/meet_scribe/
 │   ├── main.py              # CLI entry point and pipeline orchestration
+│   ├── recorder.py          # Live capture: mic + system audio → stereo WAV
 │   ├── audio_extractor.py   # FFmpeg audio extraction
 │   ├── diarizer.py          # Speaker diarization (pyannote)
 │   ├── transcriber.py       # Speech-to-text (faster-whisper)
@@ -166,6 +196,7 @@ meet-scribe/
 ├── notebooks/
 │   └── meet_scribe_colab.ipynb  # Google Colab notebook with GPU
 ├── config.yaml              # Default configuration
+├── recordings/              # Live recordings (--record), git-ignored
 ├── .env                     # HuggingFace token (not committed)
 └── pyproject.toml
 ```
