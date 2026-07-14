@@ -1395,7 +1395,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "faster-whisper", specifier = ">=1.1.0" },
-    { name = "numpy", specifier = ">=2.4.3" },
+    { name = "numpy", specifier = ">=2.0" },
     { name = "pyannote-audio", specifier = ">=3.3.0,<5.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },

@@ -11,7 +11,12 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "soundfile>=0.12.0",
     "soundcard>=0.4.6",
-    "numpy>=2.4.3",
+    # Floor basso di proposito: su Colab numpy 2.0.2 e' gia' installato e importato
+    # all'avvio. Un floor alto (es. >=2.4) forzerebbe pip ad aggiornarlo, e siccome
+    # e' gia' importato Colab chiederebbe il "Restart runtime" a ogni prima cella.
+    # >=2.0 soddisfa i vincoli reali dell'albero (pyannote-core>=2.0, pandas>=1.26)
+    # e lascia pip tenere il numpy gia' presente.
+    "numpy>=2.0",
 ]
 
 [build-system]
