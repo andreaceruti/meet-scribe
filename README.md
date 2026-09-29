@@ -78,33 +78,67 @@ uv run meet-scribe --record-only
 
 # ...then process it whenever you want
 uv run meet-scribe --input recordings/recording_20260707_143200.wav --lang it
+
+# Rebuild recordings that were interrupted (window closed, crash)
+uv run meet-scribe --recover
 ```
 
-**Which devices?** It records whatever Windows currently has set as **default
-microphone** and **default output** (the output is captured via WASAPI loopback —
-no virtual cable or "Stereo Mix" needed). Change the Windows defaults and the next
-recording follows them, nothing is hardcoded. The startup banner prints the two
-devices it picked, so you can check before you start:
+**Start it whenever you want.** Recording begins immediately, with no blocking
+check at startup, so launching it after the call has already started only costs
+the time it takes you to type the command. The heavy transcription libraries are
+not loaded until the recording is over.
+
+**It follows your devices, live.** It records whatever Windows has set as
+**default microphone** and **default output** (the output via WASAPI loopback,
+no virtual cable or "Stereo Mix" needed), and re-checks the defaults every second.
+Connect or disconnect Bluetooth earbuds, unplug the monitor, switch output: the
+capture moves with you, mid-recording. If a device vanishes or refuses to open
+(e.g. AirPods put back in the case, error `0x88890004`), it falls back to the
+first device that works and keeps retrying the default in the background.
+
+**Calls over Bluetooth.** Windows has two default outputs: a normal one and one
+for calls. With earbuds in a call, meeting apps often play through the hands-free
+endpoint (e.g. `Headset (AirPods)`) while the normal default stays
+`Headphones (AirPods)`. The right channel sums the loopback of both, so the other
+participants never end up on an output that isn't being recorded.
+
+**Muted microphone.** A working mic always has some background noise, so
+*absolute* digital silence means the mic is muted in Windows or zeroed by a noise
+filter (Dolby Voice does this). After 3 seconds of it (the silence Bluetooth
+earbuds send while their call link starts up is ignored), the recorder switches
+to another microphone if there is one (e.g. the webcam's), retries the default
+now and then, and switches back as soon as it works again. Bluetooth hands-free mics
+are never picked as a fallback, because opening them forces the earbuds into
+low-quality call mode.
+
+**Live status.** A status line shows the level of both channels while you record,
+and every device change or problem is printed with a timestamp:
 
 ```
-  Microfono (L):    Headset (AirPods)
-  Audio sistema (R): Headphones (AirPods)
+  [00:00] uscita: Headphones (AirPods)
+  [00:00] microfono: Headset (AirPods)
+  [12:41] microfono: perso Headset (AirPods) (dispositivo non più disponibile ...)
+  [12:41] microfono: ora su Microphone Array (AMD Audio Device)
+  REC 12:45  mic [######....]  -24 dB  sistema [####......]  -35 dB  INVIO = stop
 ```
 
 **Stereo layout.** The file is a stereo WAV — **left = your mic, right = system
 audio**. The batch pipeline downmixes it to mono automatically, so diarization sees
-all speakers, you included.
+all speakers, you included. Gaps caused by device switches are filled with silence,
+so the two channels stay in sync.
 
-**You can't lose a recording.** Audio is streamed to disk *while* you record (not
-held in RAM), and the final save ignores Ctrl+C. If the process is force-killed
-mid-save, the raw per-channel tracks (`recording_*.mic.f32`, `recording_*.sys.f32`)
-are left in `recordings/` for recovery instead of being deleted.
+**You can't lose a recording.** Every track is streamed to disk *while* you record
+(raw `recording_*.f32` files, not RAM). The final WAV is written in chunks to a
+`.wav.part` file and renamed only once complete, so a half-written WAV never
+exists; the raw tracks are deleted only after that. The final save ignores Ctrl+C.
+If the process dies anyway (window closed, crash, power loss), the next
+`--record` rebuilds the interrupted recording automatically, or run
+`meet-scribe --recover`.
 
-> **Bluetooth headsets (e.g. AirPods):** when the same earbuds are used as *both*
-> mic and output, Windows switches to the hands-free profile and the loopback
-> capture gets small gaps (harmless "data discontinuity" warnings — now silenced).
-> For the cleanest capture, use the **laptop mic for input + Bluetooth/speakers for
-> output**, so the two streams don't fight over one Bluetooth link.
+> **Bluetooth headsets (e.g. AirPods):** using the earbuds as *mic* switches them
+> to the hands-free profile, which lowers what you hear to call quality. That is
+> Windows, not MeetScribe. If you want full-quality audio in your ears, set the
+> **laptop mic as the Windows input** and keep the earbuds as output only.
 
 > **On CPU, transcription is the slow part, not recording.** Saving a 1-hour
 > recording is instant, but transcribing it afterward with `large-v3-turbo` on CPU

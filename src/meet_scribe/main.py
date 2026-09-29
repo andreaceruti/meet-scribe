@@ -13,9 +13,9 @@ _hf_token = os.getenv("HUGGING_FACE_TOKEN") or os.getenv("HF_TOKEN")
 if _hf_token and not os.getenv("HF_TOKEN"):
     os.environ["HF_TOKEN"] = _hf_token
 
+# diarizer e transcriber (torch, pyannote, whisper) vengono importati dentro run():
+# costano circa 5 secondi, che in `--record` sarebbero secondi di riunione persi.
 from meet_scribe.audio_extractor import extract_audio, get_audio_duration
-from meet_scribe.diarizer import diarize
-from meet_scribe.transcriber import load_whisper_model, transcribe
 from meet_scribe.formatter import (
     format_timestamp,
     merge_diarization_and_transcription,
@@ -59,6 +59,9 @@ def run(input_path: str, language: str | None = None, config_path: str | None = 
                'large-v3-turbo'). Utile per usare un modello più leggero se quello
                grande non si scarica.
     """
+    from meet_scribe.diarizer import diarize
+    from meet_scribe.transcriber import load_whisper_model, transcribe
+
     input_path = Path(input_path)
     config = load_config(Path(config_path) if config_path else None)
     total_start = time.time()
@@ -185,6 +188,12 @@ def main():
         help="Registra soltanto (mic + audio di sistema) senza trascrivere",
     )
     parser.add_argument(
+        "--recover",
+        action="store_true",
+        help="Ricostruisce le registrazioni interrotte (tracce .f32 rimaste nella "
+             "cartella delle registrazioni) ed esce",
+    )
+    parser.add_argument(
         "--lang", "-l",
         default=None,
         help="Lingua (es. 'it', 'en'). Default: auto-detect",
@@ -203,16 +212,28 @@ def main():
 
     args = parser.parse_args()
 
-    if not args.record and not args.record_only and not args.input:
-        parser.error("specifica --input FILE oppure --record / --record-only")
+    if not (args.record or args.record_only or args.recover or args.input):
+        parser.error("specifica --input FILE, --record / --record-only oppure --recover")
+
+    config = load_config(Path(args.config) if args.config else None)
+    rec_dir = Path(config.get("output", {}).get("recordings_dir", "recordings"))
+
+    if args.recover:
+        from meet_scribe.recorder import recover_recordings
+
+        if not recover_recordings(rec_dir):
+            print(f"Nessuna registrazione interrotta da ricostruire in {rec_dir}.")
+        return
 
     # Modalità registrazione: cattura live, poi (opzionale) processa in batch
     if args.record or args.record_only:
-        from meet_scribe.recorder import record_meeting
+        from meet_scribe.recorder import RecordingError, record_meeting
 
-        config = load_config(Path(args.config) if args.config else None)
-        rec_dir = Path(config.get("output", {}).get("recordings_dir", "recordings"))
-        recorded = record_meeting(rec_dir)
+        try:
+            recorded = record_meeting(rec_dir)
+        except RecordingError as e:
+            print(f"\n{e}\n")
+            raise SystemExit(1)
 
         if args.record_only:
             print(f"Registrazione completata: {recorded}")
