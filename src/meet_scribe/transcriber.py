@@ -1,8 +1,33 @@
 from pathlib import Path
 
+import numpy as np
+import soundfile as sf
 import torch
 from faster_whisper import WhisperModel
 from faster_whisper.utils import download_model
+
+# faster-whisper lavora sempre su audio mono a 16 kHz.
+WHISPER_SAMPLE_RATE = 16000
+
+
+def _load_audio(audio_path: Path):
+    """Carica il WAV come array float32 mono a 16 kHz, senza passare da PyAV.
+
+    Passandogli un path, faster-whisper apre il file con PyAV, e PyAV 19 ha
+    rimosso l'argomento `metadata_errors` che faster-whisper 1.2.1 usa ancora:
+    ogni trascrizione falliva con TypeError su av.open. La pipeline ha già
+    convertito l'audio in WAV mono a 16 kHz con FFmpeg, quindi basta leggerlo
+    con soundfile. Se il file non è in quel formato si lascia fare a
+    faster-whisper, che sa ricampionare.
+    """
+    try:
+        data, sample_rate = sf.read(str(audio_path), dtype="float32", always_2d=True)
+    except Exception:  # noqa: BLE001 - formato che soundfile non legge
+        return str(audio_path)
+    if sample_rate != WHISPER_SAMPLE_RATE:
+        return str(audio_path)
+    mono = data.mean(axis=1) if data.shape[1] > 1 else data[:, 0]
+    return np.ascontiguousarray(mono, dtype=np.float32)
 
 
 def _is_whisper_cached(model_size: str) -> bool:
@@ -70,7 +95,7 @@ def transcribe(audio_path: Path, model: WhisperModel,
         default_vad.update(vad_params)
 
     segments, info = model.transcribe(
-        str(audio_path),
+        _load_audio(audio_path),
         language=language,
         beam_size=beam_size,
         word_timestamps=True,

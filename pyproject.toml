@@ -6,6 +6,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "faster-whisper>=1.1.0",
+    # PyAV 19 ha rimosso `metadata_errors` da av.open, che faster-whisper 1.2.1
+    # passa ancora quando gli si dà un path (TypeError in trascrizione su Colab).
+    # transcriber.py ora passa direttamente i campioni e non dipende più da quella
+    # chiamata; il limite resta come rete di sicurezza. Toglierlo quando
+    # faster-whisper pubblica una versione compatibile con PyAV 19.
+    "av<19",
     "pyannote-audio>=3.3.0,<5.0.0",
     # pyannote 4.x scarica un PLDA da `pyannote/speaker-diarization-community-1`,
     # che HF serve tramite storage Xet. Senza il pacchetto `hf-xet`, huggingface_hub
