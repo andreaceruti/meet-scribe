@@ -73,12 +73,21 @@ def transcribe(audio_path: Path, model: WhisperModel,
                language: str | None = None,
                beam_size: int = 5,
                initial_prompt: str | None = None,
+               hotwords: str | None = None,
                vad_params: dict | None = None) -> tuple[list[dict], list[dict], str]:
     """Trascrive l'audio e restituisce segmenti + parole con timestamp.
 
     Args:
-        initial_prompt: Testo di contesto per guidare Whisper (nomi propri, acronimi, etc.)
-                        Es: "Meeting con Alice, Bob Smith, Charlie. CSRD, ESG, ESMA."
+        initial_prompt: Frase di contesto per guidare Whisper all'inizio.
+                        Attenzione: faster-whisper la mette solo nella prima finestra
+                        e la perde dopo circa 220 token di testo trascritto, cioè
+                        dopo un paio di minuti. Per i termini che ricorrono in tutta
+                        la riunione usare `hotwords`.
+        hotwords: Parole chiave separate da virgola (nomi, sigle, termini tecnici).
+                  faster-whisper le reinserisce nel prompt di OGNI finestra, quindi
+                  valgono per tutta la riunione. Tenerle brevi: oltre ~220 token
+                  vengono troncate, e liste lunghe aumentano il rischio che Whisper
+                  le "senta" anche dove non sono state dette.
         vad_params: Parametri VAD override. Default ottimizzati per meeting multi-speaker.
     """
     # VAD parameters ottimizzati per meeting:
@@ -102,6 +111,7 @@ def transcribe(audio_path: Path, model: WhisperModel,
         vad_filter=True,
         vad_parameters=default_vad,
         initial_prompt=initial_prompt,
+        hotwords=hotwords or None,
         condition_on_previous_text=True,
         no_speech_threshold=0.5,
     )

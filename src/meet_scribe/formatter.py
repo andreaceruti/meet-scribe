@@ -3,6 +3,34 @@ import re
 from pathlib import Path
 
 
+def apply_corrections(segments: list[dict], corrections: dict | None) -> int:
+    """Corregge nel testo gli errori di trascrizione che si ripetono sempre uguali.
+
+    `corrections` mappa il termine giusto sulle varianti sbagliate, ad esempio
+    {"Databricks": ["data bricks"]}. Il confronto ignora maiuscole e minuscole e
+    vale solo per parole o frasi intere, quindi "LVU" non tocca "LVUX". È più
+    sicuro che spiegare i termini a Whisper con un prompt: non cambia cosa il
+    modello sente, quindi non può fargli inventare nulla. Modifica i segmenti sul
+    posto e ritorna il numero di sostituzioni.
+    """
+    if not corrections:
+        return 0
+    rules = []
+    for right, wrong in corrections.items():
+        variants = [wrong] if isinstance(wrong, str) else list(wrong or [])
+        for variant in variants:
+            variant = str(variant).strip()
+            if variant and variant.lower() != str(right).lower():
+                pattern = re.compile(r"(?<!\w)" + re.escape(variant) + r"(?!\w)", re.IGNORECASE)
+                rules.append((pattern, str(right)))
+    count = 0
+    for segment in segments:
+        for pattern, right in rules:
+            segment["testo"], n = pattern.subn(right, segment["testo"])
+            count += n
+    return count
+
+
 def format_timestamp(seconds: float) -> str:
     """Converte secondi in formato HH:MM:SS."""
     h = int(seconds // 3600)
@@ -15,20 +43,24 @@ def merge_diarization_and_transcription(
     diarization_segments: list[dict],
     transcription_segments: list[dict],
     words: list[dict] | None = None,
+    language: str | None = None,
 ) -> list[dict]:
     """Unisce diarization (chi parla) con trascrizione (cosa dice).
 
     Se words è fornito (word-level timestamps), assegna ogni parola allo speaker
     corretto e ricostruisce le frasi. Altrimenti fallback al merge per segmento.
+    `language` è la lingua rilevata da Whisper: serve alle regole sulle maiuscole
+    che valgono solo per l'inglese.
     """
     if words:
-        return _merge_word_level(diarization_segments, words)
+        return _merge_word_level(diarization_segments, words, language)
     return _merge_segment_level(diarization_segments, transcription_segments)
 
 
 def _merge_word_level(
     diarization_segments: list[dict],
     words: list[dict],
+    language: str | None = None,
 ) -> list[dict]:
     """Merge a livello di parola: assegna ogni parola al suo speaker, poi raggruppa."""
     if not words:
@@ -93,7 +125,7 @@ def _merge_word_level(
     # Post-processing pipeline
     merged = _fix_boundary_words(merged)
     merged = _merge_short_segments(merged, gap_threshold=2.0)
-    merged = _capitalize_segments(merged)
+    merged = _capitalize_segments(merged, language)
 
     # Converti timestamp in formato stringa
     for seg in merged:
@@ -250,15 +282,17 @@ def _merge_short_segments(segments: list[dict], gap_threshold: float = 2.0) -> l
     return merged
 
 
-def _capitalize_segments(segments: list[dict]) -> list[dict]:
+def _capitalize_segments(segments: list[dict], language: str | None = None) -> list[dict]:
     """Capitalizza l'inizio di ogni segmento e dopo i punti.
 
     Whisper produce testo con punteggiatura ma spesso senza maiuscole corrette.
     Questa funzione:
     - Capitalizza la prima lettera di ogni segmento (nuovo speaker = nuova frase)
     - Capitalizza dopo ". " dentro il testo
-    - Capitalizza "i" isolata (inglese "I")
+    - Capitalizza "i" isolata in "I", ma SOLO in inglese: in italiano "i" è
+      l'articolo ("i dati") e diventerebbe "I dati" in tutto il testo.
     """
+    english = (language or "").lower().startswith("en")
     for seg in segments:
         text = seg["testo"]
         if not text:
@@ -281,8 +315,9 @@ def _capitalize_segments(segments: list[dict]) -> list[dict]:
             text,
         )
 
-        # Capitalizza "i" isolata → "I" (inglese)
-        text = re.sub(r'\bi\b', 'I', text)
+        # Capitalizza "i" isolata → "I", solo per l'inglese
+        if english:
+            text = re.sub(r'\bi\b', 'I', text)
 
         # Capitalizza acronimi comuni (case-insensitive match)
         # NB: "us" escluso perché troppo ambiguo (pronome vs paese)

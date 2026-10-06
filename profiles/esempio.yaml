@@ -1,0 +1,33 @@
+# Profilo di esempio per meet-scribe.
+#
+# Un profilo raccoglie le impostazioni di un progetto, così non vanno riscritte a
+# ogni riunione. Copia questo file con il nome del progetto (es.
+# profiles/progetto-x.yaml) e usalo con:
+#
+#   meet-scribe --input riunione.wav --profile progetto-x --max-speakers 5
+#
+# I file in profiles/ sono esclusi da git, tranne questo esempio: puoi scriverci
+# nomi di colleghi e clienti senza che finiscano nel repo pubblico.
+# Tutte le chiavi sono facoltative.
+
+# Lingua della riunione: evita che Whisper la indovini male dai primi secondi.
+language: it
+
+# Errori che Whisper ripete sempre uguali: termine giusto -> varianti sbagliate.
+# Il confronto vale su parole intere e ignora maiuscole e minuscole.
+# È il modo sicuro per sistemare nomi e sigle: non cambia cosa il modello
+# sente, quindi non può fargli inventare testo.
+corrections:
+  Acme: [Akme, Acmé]
+  Power BI: [Power Bi, power bee]
+
+# Numero di persone che parlano. Di solito cambia da riunione a riunione, quindi
+# conviene passarlo con --max-speakers; qui va bene se è quasi sempre lo stesso.
+# max_speakers: 5
+# min_speakers: 2
+
+# Contesto per Whisper: sconsigliato con large-v3-turbo (vedi config.yaml), che
+# riconosce già da solo nomi e sigle. Nei test, frase iniziale e parole chiave
+# insieme hanno fatto perdere testo.
+# initial_prompt: "Riunione di lavoro in italiano sul progetto X con il cliente Acme."
+# hotwords: "Acme, Power BI, UAT, KPI"

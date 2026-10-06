@@ -27,3 +27,8 @@ output/
 .claude/
 
 recordings
+
+# Profili di riunione: contengono nomi di persone e clienti, restano in locale.
+# Solo l'esempio generico è nel repo.
+profiles/*
+!profiles/esempio.yaml

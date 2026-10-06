@@ -59,9 +59,39 @@ uv run meet-scribe --input meeting.mp4 --lang en
 
 # Custom config
 uv run meet-scribe --input audio.wav --lang it --config my_config.yaml
+
+# Tell it how many people speak (helps speaker separation) and use a project profile
+uv run meet-scribe --input audio.wav --max-speakers 6 --profile my-project
 ```
 
 Output files are saved to `output/` as JSON and TXT.
+
+### Project profiles
+
+A profile is a small YAML file in `profiles/` holding what stays the same across a
+project's meetings: language, speaker count, and **corrections** for terms Whisper
+gets wrong in the same way every time. Start from `profiles/esempio.yaml`:
+
+```yaml
+language: it
+corrections:              # right term: [wrong variants], whole words, any case
+  Databricks: [data bricks]
+  Acme: [Akme]
+# max_speakers: 6         # usually better per meeting, with --max-speakers
+```
+
+Everything in `profiles/` except the example is git-ignored, so client and
+colleague names never reach the repository. On Colab, upload the profile to
+`/content/meet-scribe/profiles/` and set `PROFILO` / `MAX_SPEAKERS` in the
+transcription cell. Precedence: command line, then profile, then `config.yaml`.
+
+> **Why corrections and not a prompt?** Whisper also accepts an `initial_prompt`
+> and `hotwords` (both supported in `config.yaml` and profiles), but on a real
+> Italian meeting with `large-v3-turbo` they did not improve the text: the model
+> already got names and acronyms right, and the two **together** dropped a whole
+> answer and created repetition loops. With `tiny`, hotwords alone wiped out most
+> of the transcript. Corrections are applied after transcription, so they cannot
+> make the model hear things that were not said.
 
 ### Live recording (record now, transcribe later)
 
@@ -170,7 +200,7 @@ whisper:
 
 diarization:
   min_speakers: null         # null = auto-detect
-  max_speakers: null
+  max_speakers: null         # or per meeting: --max-speakers N
 
 output:
   formats:
@@ -178,11 +208,14 @@ output:
     - txt
   directory: "output"
   recordings_dir: "recordings"   # where --record / --record-only save the WAVs
+  corrections: null              # usually set per project in profiles/
 ```
 
 **Model recommendations:**
 - **CPU**: `medium` (best quality/speed tradeoff) — or `small`/`base` for long live recordings you want to transcribe quickly
-- **GPU**: `large-v3-turbo` (best quality, fast on GPU)
+- **GPU**: `large-v3-turbo` (best quality, fast on GPU). On an Italian meeting it
+  was clearly better than `small`: correct technical terms, real punctuation, no
+  Spanish or English words leaking into Italian sentences.
 
 ## How it works
 

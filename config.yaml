@@ -9,10 +9,18 @@ whisper:
   beam_size: 5
   compute_type: "int8"  # int8 è più veloce su CPU, float16 su GPU (auto-detect)
 
-  # Prompt iniziale per guidare Whisper su nomi propri, acronimi, contesto
-  # Aiuta a trascrivere correttamente nomi che Whisper non conosce
-  # Es: "Meeting with Alice, Bob Smith, Charlie. Topics: CSRD, ESG, ESMA."
+  # Contesto per Whisper. Sconsigliato con large-v3-turbo: nei test su una riunione
+  # reale (2026-10-01) il modello riconosceva già da solo nomi e sigle, e questi
+  # due parametri non hanno migliorato il testo. Usati INSIEME hanno fatto perdere
+  # una risposta intera e creato ripetizioni. Con tiny le parole chiave da sole
+  # hanno fatto sparire quasi tutta la trascrizione.
+  # Per correggere un termine sbagliato usa invece output.corrections.
+  #
+  # initial_prompt: frase di contesto, vale solo per i primi minuti (faster-whisper
+  #   la perde dopo circa 220 token di testo trascritto).
+  # hotwords: parole chiave separate da virgola, rimesse in ogni finestra.
   initial_prompt: null
+  hotwords: null
 
   # Parametri VAD (Voice Activity Detection) di Silero
   # Ottimizzati per meeting multi-speaker con turni rapidi
@@ -24,7 +32,7 @@ whisper:
 # Speaker diarization (pyannote)
 diarization:
   min_speakers: null  # null = auto-detect
-  max_speakers: null  # null = auto-detect
+  max_speakers: null  # null = auto-detect. Per una singola riunione: --max-speakers N
 
   # Hyperparameters per tuning fine della diarization
   # Questi sovrascrivono i default del modello pyannote/speaker-diarization-3.1
@@ -57,3 +65,13 @@ output:
   directory: "output"
   # Cartella dove salvare le registrazioni live (--record / --record-only)
   recordings_dir: "recordings"
+
+  # Correzioni applicate al testo dopo la trascrizione, per gli errori che
+  # Whisper ripete sempre uguali: termine giusto -> varianti sbagliate.
+  # Confronto su parole intere, senza distinguere maiuscole e minuscole.
+  # Di solito conviene metterle nel profilo del progetto (profiles/).
+  # Es:
+  #   corrections:
+  #     Databricks: [data bricks]
+  #     Acme: [Akme]
+  corrections: null
