@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -8,6 +10,43 @@ from faster_whisper.utils import download_model
 
 # faster-whisper lavora sempre su audio mono a 16 kHz.
 WHISPER_SAMPLE_RATE = 16000
+
+
+def _preload_cuda12_cublas() -> str | None:
+    """Rende disponibile a CTranslate2 il cuBLAS di CUDA 12. Ritorna il path caricato.
+
+    CTranslate2, il motore di faster-whisper su GPU, è compilato per CUDA 12: alla
+    prima operazione su GPU cerca `libcublas.so.12` per nome. A inizio ottobre 2026
+    Colab è passato a PyTorch con CUDA 13, che porta solo cuBLAS 13, e la
+    trascrizione falliva con "Library libcublas.so.12 is not found or cannot be
+    loaded". La libreria arriva dal pacchetto nvidia-cublas-cu12 (dipendenza su
+    Linux): la carichiamo per path assoluto, così la ricerca per nome di
+    CTranslate2 la trova già in memoria. RTLD_LOCAL: i suoi simboli non vengono
+    esposti a PyTorch, che continua a usare il suo cuBLAS 13.
+
+    Fuori da Linux non fa nulla, e non solleva mai eccezioni: nel caso peggiore
+    resta l'errore originale di CTranslate2.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        import ctypes
+        import glob
+        import site
+
+        roots = list(site.getsitepackages()) + [site.getusersitepackages()]
+        loaded = None
+        # Prima cublasLt, da cui cublas dipende, poi cublas.
+        for name in ("libcublasLt.so.12", "libcublas.so.12"):
+            for root in roots:
+                hits = sorted(glob.glob(os.path.join(root, "nvidia", "**", name), recursive=True))
+                if hits:
+                    ctypes.CDLL(hits[0], mode=ctypes.RTLD_LOCAL)
+                    loaded = hits[0]
+                    break
+        return loaded
+    except Exception:  # noqa: BLE001 - mai peggiorare la situazione
+        return None
 
 
 def _load_audio(audio_path: Path):
@@ -53,6 +92,9 @@ def load_whisper_model(model_size: str = "medium",
     if torch.cuda.is_available():
         device = "cuda"
         compute_type = "float16"
+        cublas12 = _preload_cuda12_cublas()
+        if cublas12:
+            print(f"       cuBLAS CUDA 12 per CTranslate2: {cublas12}")
     else:
         device = "cpu"
         # mantieni il compute_type dal config (int8 per CPU)

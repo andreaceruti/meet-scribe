@@ -12,6 +12,11 @@ dependencies = [
     # chiamata; il limite resta come rete di sicurezza. Toglierlo quando
     # faster-whisper pubblica una versione compatibile con PyAV 19.
     "av<19",
+    # CTranslate2 (faster-whisper su GPU) è compilato per CUDA 12 e cerca
+    # libcublas.so.12; da ottobre 2026 Colab ha PyTorch con CUDA 13, che porta solo
+    # cuBLAS 13. Questo pacchetto fornisce cuBLAS 12, che transcriber.py carica
+    # prima di Whisper. Solo Linux: su Windows e macOS non viene installato.
+    "nvidia-cublas-cu12; sys_platform == 'linux'",
     "pyannote-audio>=3.3.0,<5.0.0",
     # pyannote 4.x scarica un PLDA da `pyannote/speaker-diarization-community-1`,
     # che HF serve tramite storage Xet. Senza il pacchetto `hf-xet`, huggingface_hub
